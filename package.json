@@ -1,0 +1,22 @@
+{
+  "name": "190129",
+  "version": "1.0.0",
+  "description": "",
+  "main": "compile.js",
+  "directories": {
+    "test": "test"
+  },
+  "dependencies": {
+    "ganache-cli": "^6.2.3",
+    "solc": "^0.4.25",
+    "truffle-hdwallet-provider": "0.0.3",
+    "web3": "^1.0.0-beta.36",
+    "websocket": "^1.0.28"
+  },
+  "devDependencies": {
+    "mocha": "^5.2.0"
+  },
+  "scripts": {
+    "test": "mocha --timeout 600000"
+  }
+}
