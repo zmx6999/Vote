@@ -1,48 +1,32 @@
-pragma solidity ^0.4.24;
+pragma solidity ^0.4.0;
 
 contract Vote {
     struct Voter {
         uint candidateNumber;
-        uint weight;
-        address delegate;
         bool voted;
+        address delegate;
+        uint weight;
     }
-
-    mapping(address=>Voter) voters;
 
     struct Candidate {
         string name;
         uint voteCount;
     }
 
-    Candidate[] public candidates;
-
-    uint public winnerIndex;
-    uint public winnerVoteCount;
+    mapping(address=>Voter) voterList;
+    Candidate[] candidateList;
 
     uint public startTime;
     uint public endTime;
     address public manager;
 
+    uint public winnerIndex;
+    uint public winnerVoteCount;
+
     constructor(uint _startTime,uint _endTime) {
         startTime=_startTime;
         endTime=_endTime;
         manager=msg.sender;
-    }
-
-    modifier onlyPrepare() {
-        require(now<startTime);
-        _;
-    }
-
-    modifier onlyStart() {
-        require(startTime<=now && now<=endTime && candidates.length>1);
-        _;
-    }
-
-    modifier onlyEnd() {
-        require(now>endTime && candidates.length>1);
-        _;
     }
 
     modifier onlyManager() {
@@ -51,62 +35,81 @@ contract Vote {
     }
 
     modifier onlyVoter() {
-        require(voters[msg.sender].weight>0);
+        require(voterList[msg.sender].weight>0);
         _;
     }
 
-    function addCandidate(string name) public onlyPrepare onlyManager {
-        candidates.push(Candidate({name:name,voteCount:0}));
+    modifier onlyPrepare() {
+        require(now<startTime);
+        _;
     }
 
-    function addVoter(address addr) public onlyPrepare onlyManager {
-        require(voters[addr].weight==0);
+    modifier onlyStart() {
+        require(startTime<=now && now<=endTime && candidateList.length>0);
+        _;
+    }
+
+    modifier onlyEnd() {
+        require(now>endTime && candidateList.length>0);
+        _;
+    }
+
+    function addVoter(address addr) onlyManager onlyPrepare {
         require(addr!=manager);
-        voters[addr]=Voter({candidateNumber:0,weight:1,delegate:0,voted:false});
+        require(voterList[addr].weight==0);
+        voterList[addr]=Voter({candidateNumber:0,voted:false,delegate:0,weight:1});
     }
 
-    function vote(uint candidateNumber) public onlyStart onlyVoter {
-        require(!voters[msg.sender].voted);
-        voters[msg.sender].candidateNumber=candidateNumber;
-        voters[msg.sender].voted=true;
-        candidates[candidateNumber].voteCount+=voters[msg.sender].weight;
+    function addCandidate(string name) onlyManager onlyPrepare {
+        candidateList.push(Candidate({name:name,voteCount:0}));
     }
 
-    function setDelegate(address delegate) public onlyStart onlyVoter {
-        require(!voters[msg.sender].voted);
+    function vote(uint candidateNumber) onlyVoter onlyStart {
+        Voter storage voter=voterList[msg.sender];
+        require(!voter.voted);
+        voter.candidateNumber=candidateNumber;
+        voter.voted=true;
+        candidateList[candidateNumber].voteCount+=voter.weight;
+    }
+
+    function setDelegate(address delegate) onlyVoter onlyStart {
+        Voter storage voter=voterList[msg.sender];
+        require(!voter.voted);
         require(isValidDelegate(delegate));
         address rootDelegate=findRootDelegate(delegate);
-        voters[msg.sender].delegate=rootDelegate;
-        voters[msg.sender].voted=true;
-        if(voters[rootDelegate].voted) {
-            candidates[voters[rootDelegate].candidateNumber].voteCount+=voters[msg.sender].weight;
+        voter.delegate=rootDelegate;
+        voter.voted=true;
+        if(voterList[rootDelegate].voted) {
+            candidateList[voterList[rootDelegate].candidateNumber].voteCount+=voter.weight;
         } else {
-            voters[rootDelegate].weight+=voters[msg.sender].weight;
+            voterList[rootDelegate].weight+=voter.weight;
         }
     }
 
-    function revealWinner() public onlyEnd onlyManager {
-        for(uint i=0;i<candidates.length;i++) {
-            if(candidates[i].voteCount>winnerVoteCount) {
-                winnerVoteCount=candidates[i].voteCount;
+    function revealWinner() onlyManager onlyEnd {
+        for(uint i=0; i<candidateList.length; i++) {
+            if(candidateList[i].voteCount>winnerVoteCount) {
                 winnerIndex=i;
+                winnerVoteCount=candidateList[i].voteCount;
             }
         }
     }
 
     function isValidDelegate(address delegate) private view returns (bool) {
-        if(voters[delegate].weight==0) return false;
+        if(voterList[delegate].weight==0) return false;
         address nextDelegate=delegate;
         while(nextDelegate>0) {
             if(nextDelegate==msg.sender) return false;
-            nextDelegate=voters[nextDelegate].delegate;
+            nextDelegate=voterList[nextDelegate].delegate;
         }
         return true;
     }
 
     function findRootDelegate(address delegate) private view returns (address) {
         address rootDelegate=delegate;
-        while(voters[rootDelegate].delegate>0) rootDelegate=voters[rootDelegate].delegate;
+        while(voterList[rootDelegate].delegate>0) {
+            rootDelegate=voterList[rootDelegate].delegate;
+        }
         return rootDelegate;
     }
 }
